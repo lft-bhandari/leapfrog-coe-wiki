@@ -5,9 +5,15 @@ from pathlib import Path
 from typing import Annotated, Callable
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.services.chat_service import ChatResponse, make_ollama_fn, navigate_and_answer
+from app.services.chat_service import (
+    ChatResponse,
+    make_ollama_fn,
+    navigate_and_answer,
+    stream_navigate_and_answer,
+)
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -44,3 +50,29 @@ def post_chat(
     """
     history = [{"role": m.role, "content": m.content} for m in body.history]
     return navigate_and_answer(body.question, history, _WIKI_DIR, chat_fn)
+
+
+@router.post("/chat/stream")
+async def post_chat_stream(
+    body: ChatRequest,
+    chat_fn: Annotated[Callable[[list[dict[str, str]]], str], Depends(get_chat_fn)],
+) -> StreamingResponse:
+    """Stream a chat response as Server-Sent Events.
+
+    Yields status events during wiki navigation, then streams the final answer
+    token by token, and ends with a citations event.
+    """
+    history = [{"role": m.role, "content": m.content} for m in body.history]
+
+    async def event_stream():
+        async for chunk in await stream_navigate_and_answer(
+            question=body.question,
+            history=history,
+            wiki_dir=_WIKI_DIR,
+            chat_fn=chat_fn,
+            model=_OLLAMA_MODEL,
+            base_url=_OLLAMA_BASE_URL,
+        ):
+            yield chunk
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -1,5 +1,7 @@
 # Wiki data — not committed (raw source copies and synthesised pages)
-wiki/
+/wiki/
+# Un-ignore the Next.js route that shares the "wiki" path segment
+!apps/web/app/wiki/
 
 # Python
 __pycache__/
