@@ -1,0 +1,22 @@
+# Wiki data — not committed (raw source copies and synthesised pages)
+wiki/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+.env
+.env.local
+.env.*.local
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
