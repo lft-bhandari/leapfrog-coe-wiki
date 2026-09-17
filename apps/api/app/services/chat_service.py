@@ -148,7 +148,6 @@ def navigate_and_answer_v2(
     """
     index_path = wiki_dir / "index.md"
     current_content = index_path.read_text(encoding="utf-8") if index_path.exists() else ""
-    current_path = "index"
 
     visited: set[str] = {"index"}
     pages_read: list[str] = []
@@ -184,12 +183,9 @@ def navigate_and_answer_v2(
         if decision.get("action") == "read":
             chosen = str(decision.get("path", "")).strip().removesuffix(".md")
             if chosen not in available:
-                break
-            page_file = wiki_dir / f"{chosen}.md"
-            if not page_file.exists():
-                break
-            current_content = page_file.read_text(encoding="utf-8")
-            current_path = chosen
+                # Bad LLM pick — continue so next iteration can recover
+                continue
+            current_content = (wiki_dir / f"{chosen}.md").read_text(encoding="utf-8")
             visited.add(chosen)
             pages_read.append(chosen)
             page_contexts.append(f"=== {chosen} ===\n{current_content}")
@@ -296,7 +292,7 @@ async def stream_navigate_and_answer(
 
     collected_tokens: list[str] = []
     try:
-        streamed_tokens = await asyncio.get_event_loop().run_in_executor(
+        streamed_tokens = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: _stream_ollama_tokens(messages, model, base_url),
         )
@@ -336,8 +332,7 @@ async def stream_navigate_and_answer_v2(
     pages_read: list[str] = []
     page_contexts: list[str] = [f"=== index ===\n{current_content}"]
 
-    def _nav_call(content: str, msgs: list[dict[str, str]]) -> str:
-        return chat_fn(msgs)
+    loop = asyncio.get_running_loop()
 
     for _ in range(max_steps):
         available = [
@@ -358,11 +353,12 @@ async def stream_navigate_and_answer_v2(
         })
 
         try:
-            raw = await asyncio.get_event_loop().run_in_executor(
+            raw = await loop.run_in_executor(
                 None, lambda msgs=nav_messages: chat_fn(msgs)
             )
             decision = json.loads(raw.strip())
-        except (json.JSONDecodeError, ValueError):
+        except Exception:
+            # JSON parse error or HTTP failure from chat_fn — stop navigation
             break
 
         if decision.get("action") == "answer":
@@ -371,11 +367,8 @@ async def stream_navigate_and_answer_v2(
         if decision.get("action") == "read":
             chosen = str(decision.get("path", "")).strip().removesuffix(".md")
             if chosen not in available:
-                break
-            page_file = wiki_dir / f"{chosen}.md"
-            if not page_file.exists():
-                break
-            current_content = page_file.read_text(encoding="utf-8")
+                continue
+            current_content = (wiki_dir / f"{chosen}.md").read_text(encoding="utf-8")
             visited.add(chosen)
             pages_read.append(chosen)
             page_contexts.append(f"=== {chosen} ===\n{current_content}")
@@ -391,7 +384,7 @@ async def stream_navigate_and_answer_v2(
 
     collected_tokens: list[str] = []
     try:
-        streamed_tokens = await asyncio.get_event_loop().run_in_executor(
+        streamed_tokens = await loop.run_in_executor(
             None,
             lambda: _stream_ollama_tokens(messages, model, base_url),
         )
@@ -429,11 +422,11 @@ def _stream_ollama_tokens(
             if not line:
                 continue
             data = json.loads(line)
-            if data.get("done"):
-                break
             token = data.get("message", {}).get("content", "")
             if token:
                 tokens.append(token)
+            if data.get("done"):
+                break
     return tokens
 
 
