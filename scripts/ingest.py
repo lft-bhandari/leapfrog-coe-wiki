@@ -11,8 +11,10 @@ from pathlib import Path
 import anthropic
 
 from core.ingest_doc import ingest_doc
-from core.synthesize import make_synthesize_fn
+from core.synthesize import make_source_synthesize_fn
+from core.wiki_repository import FilesystemWikiRepository
 
+# wiki/ lives at the repo root, one level above scripts/
 _WIKI_DIR = Path(__file__).parent.parent / "wiki"
 
 
@@ -23,7 +25,8 @@ def main():
         sys.exit(1)
 
     client = anthropic.Anthropic()
-    synthesize = make_synthesize_fn(client)
+    synthesize = make_source_synthesize_fn(client)
+    repo = FilesystemWikiRepository(_WIKI_DIR)
 
     errors = False
     for source in sources:
@@ -39,7 +42,7 @@ def main():
 
         print(f"[ingest] {doc_path.name} ...", end=" ", flush=True)
         try:
-            ingest_doc(doc_path, _WIKI_DIR, synthesize)
+            ingest_doc(doc_path, repo, synthesize)
             print("done")
         except Exception as exc:
             print(f"failed\n[error] {exc}", file=sys.stderr)
