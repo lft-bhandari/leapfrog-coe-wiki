@@ -51,6 +51,10 @@ class WikiRepository(Protocol):
     def list_slugs(self, page_type: PageType) -> list[str]:
         """List all slugs of a given page type.
 
+        Only matches files directly inside the page_type directory (non-recursive).
+        Domain index pages live at wiki/domains/<domain>/index.md and are not
+        returned by list_slugs("domains") — use page_exists() to check them individually.
+
         Args:
             page_type: One of "sources", "concepts", "entities", "domains".
 
@@ -68,6 +72,22 @@ class WikiRepository(Protocol):
 
         Returns:
             True if the page file exists on disk.
+        """
+        ...
+
+    def write_root_index(self, content: str) -> None:
+        """Write the root wiki/index.md file.
+
+        Args:
+            content: Full markdown content of the root index.
+        """
+        ...
+
+    def root_index_exists(self) -> bool:
+        """Check whether wiki/index.md exists.
+
+        Returns:
+            True if the root index file exists.
         """
         ...
 
@@ -104,3 +124,11 @@ class FilesystemWikiRepository:
 
     def page_exists(self, page_type: PageType, slug: str) -> bool:
         return (self._root / page_type / f"{slug}.md").exists()
+
+    def write_root_index(self, content: str) -> None:
+        path = self._root / "index.md"
+        self._root.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    def root_index_exists(self) -> bool:
+        return (self._root / "index.md").exists()

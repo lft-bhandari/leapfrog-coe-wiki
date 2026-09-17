@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Callable
 
+from core.slug import slugify
 from core.wiki_repository import WikiRepository
-
-
-def _slugify(name: str) -> str:
-    """Convert a filename stem to a URL-safe lowercase slug."""
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower())
-    return slug.strip("-")
 
 
 def ingest_doc(
@@ -29,7 +23,7 @@ def ingest_doc(
     Raises:
         ValueError: If a slug cannot be derived from the filename.
     """
-    slug = _slugify(doc_path.stem)
+    slug = slugify(doc_path.stem)
     if not slug:
         raise ValueError(f"Cannot derive a slug from filename {doc_path.name!r}")
 
