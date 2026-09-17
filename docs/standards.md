@@ -6,7 +6,7 @@ Applies to all code in this repo. Agents must follow these when writing or editi
 
 ## Comments
 
-Write comments only when the **why** is non-obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug, or behaviour that would surprise a reader.
+Every non-obvious decision in the code **must** have a one-line comment explaining the constraint or invariant. "Non-obvious" means a future reader familiar with the language and framework would not immediately understand *why* this choice was made.
 
 Do **not** write comments that:
 - Restate what the code already says (`# increment counter` above `count += 1`)
@@ -21,13 +21,33 @@ One short line is the maximum. Multi-line comment blocks are not used.
 
 ### Docstrings
 
-Use docstrings only on **public functions and classes** where the signature alone does not communicate the contract. Internal helpers and private functions (`_name`) do not get docstrings.
+Use **Google-style docstrings** on all public functions and classes where the signature alone does not communicate the contract. Internal helpers and private functions (`_name`) do not get docstrings.
 
-Format: one-line summary. If more is needed, add a blank line then prose. Never use argument/return sections (`:param`, `:returns:`, `Args:`, `Returns:`) — type hints carry that information.
+Format: one-line summary. Add `Args:`, `Returns:`, and `Raises:` sections only when they add information not already clear from type hints — omit them when the types are self-explanatory.
 
 ```python
-def ingest_doc(doc_path: Path, wiki_dir: Path, synthesize_fn: Callable[[str, str], str]) -> None:
-    """Copy the source file to raw/ and write a synthesized source page to sources/."""
+def ingest_doc(
+    doc_path: Path,
+    wiki_dir: Path,
+    synthesize_fn: Callable[[str, str], str],
+) -> None:
+    """Copy the source file to raw/ and write a synthesized source page to sources/.
+
+    Args:
+        doc_path: Path to the local markdown file to ingest.
+        wiki_dir: Root of the wiki directory tree (contains raw/ and sources/).
+        synthesize_fn: Callable that takes (content, slug) and returns a wiki source page.
+
+    Raises:
+        ValueError: If a slug cannot be derived from the filename.
+    """
+```
+
+For simple cases where the signature is clear, a one-line summary is enough:
+
+```python
+def _slugify(name: str) -> str:
+    """Convert a filename stem to a URL-safe lowercase slug."""
 ```
 
 ### Type hints
