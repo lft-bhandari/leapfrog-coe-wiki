@@ -1,3 +1,7 @@
+## Coding standards
+
+See `docs/standards.md` for comment style, docstring rules, type hints, design patterns, and test conventions — for both Python and TypeScript. Follow these when writing or editing any code in this repo.
+
 ## Agent skills
 
 ### Issue tracker
