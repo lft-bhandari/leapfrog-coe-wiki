@@ -1,26 +1,48 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Leapfrog brand tokens — single source of truth for all color and type values */
+@theme {
+  /* Colors */
+  --color-brand-primary: #038E43;
+  --color-brand-abyss: #111111;
+  --color-brand-obsidian: #333333;
+  --color-brand-ivory: #D9D9D9;
+  --color-brand-white: #FFFFFF;
+  --color-brand-emerald: #00DF66;
+  --color-brand-mint: #B4FFD6;
+  --color-brand-gold: #FFD700;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Typography — Inter for internal tooling (Tomato Grotesk is for external/marketing) */
+  --font-sans: "Inter", sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Type scale: 12 / 14 / 16 / 18 / 20 / 24 / 32 / 36px */
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5rem;
+  --text-md: 1.125rem;
+  --text-md--line-height: 1.75rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 2rem;
+  --text-2xl--line-height: 2.5rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.75rem;
+
+  /* Font weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-brand-white);
+  color: var(--color-brand-abyss);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
