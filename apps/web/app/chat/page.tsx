@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Badge } from "@/app/components/badge"
 import { Button } from "@/app/components/button"
 import { LayoutShell } from "@/app/components/layout-shell"
+import { SideNav } from "@/app/components/side-nav"
 import { Spinner } from "@/app/components/spinner"
 import { Textarea } from "@/app/components/input"
 
@@ -13,6 +14,8 @@ type SseEvent =
   | { type: "token"; content: string }
   | { type: "done"; citations: string[] }
   | { type: "error"; message: string }
+
+type NodeType = "domain" | "concept" | "entity" | "source"
 
 interface Message {
   role: "user" | "assistant"
@@ -24,19 +27,30 @@ interface Message {
   loading: boolean
 }
 
-export default function ChatPage() {
+/** Runtime guard: returns the string as NodeType if valid, else "source". */
+function toNodeType(raw: string): NodeType {
+  if (raw === "domain" || raw === "concept" || raw === "entity" || raw === "source") return raw
+  return "source"
+}
+
+function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // Pre-fill the input when navigating from the graph "Chat about this" action
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const topic = params.get("topic")
+    if (topic) setInput(`Tell me about: ${topic}`)
+  }, [])
+
   function scrollToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const question = input.trim()
+  async function submitMessage(question: string) {
     if (!question || streaming) return
     setInput("")
     setStreaming(true)
@@ -102,7 +116,7 @@ export default function ChatPage() {
           scrollToBottom()
         }
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => {
         const next = [...prev]
         next[assistantIdx] = {
@@ -118,27 +132,7 @@ export default function ChatPage() {
   }
 
   return (
-    <LayoutShell
-      sidebar={
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-brand-emerald uppercase tracking-wider">CoE Wiki</p>
-          <nav className="mt-4 space-y-1">
-            <a
-              href="/chat"
-              className="block rounded px-2 py-1 text-xs text-brand-ivory bg-brand-obsidian"
-            >
-              Chat
-            </a>
-            <a
-              href="/design"
-              className="block rounded px-2 py-1 text-xs text-brand-ivory hover:bg-brand-obsidian"
-            >
-              Design System
-            </a>
-          </nav>
-        </div>
-      }
-    >
+    <LayoutShell sidebar={<SideNav active="chat" />}>
       <div className="flex h-full flex-col">
         {/* Message list */}
         <div className="flex-1 overflow-y-auto space-y-6 pb-4">
@@ -185,7 +179,7 @@ export default function ChatPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {msg.citations.map((path) => {
                       const parts = path.split("/")
-                      const type = parts[0] as "domain" | "concept" | "entity" | "source"
+                      const type = toNodeType(parts[0] ?? "")
                       return (
                         <a key={path} href={`/wiki/${path}`}>
                           <Badge type={type} label={parts.slice(1).join("/")} />
@@ -201,7 +195,10 @@ export default function ChatPage() {
         </div>
 
         {/* Input form */}
-        <form onSubmit={handleSubmit} className="border-t border-brand-ivory pt-4">
+        <form
+          onSubmit={(e) => { e.preventDefault(); submitMessage(input.trim()) }}
+          className="border-t border-brand-ivory pt-4"
+        >
           <div className="flex gap-3 items-end">
             <Textarea
               value={input}
@@ -209,11 +206,11 @@ export default function ChatPage() {
               placeholder="Ask a question about our AI engineering practices…"
               rows={2}
               className="flex-1"
-              // Submit on Enter (without Shift)
+              // Submit on Enter (without Shift) — extracted to submitMessage to avoid type assertion
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
-                  handleSubmit(e as unknown as React.FormEvent)
+                  submitMessage(input.trim())
                 }
               }}
               disabled={streaming}
@@ -227,3 +224,5 @@ export default function ChatPage() {
     </LayoutShell>
   )
 }
+
+export default ChatPage

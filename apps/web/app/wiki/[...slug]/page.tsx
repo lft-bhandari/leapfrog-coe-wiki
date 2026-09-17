@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { Badge } from "@/app/components/badge"
 import { Card } from "@/app/components/card"
 import { LayoutShell } from "@/app/components/layout-shell"
+import { SideNav } from "@/app/components/side-nav"
 
 // Internal URL is used server-side; the browser never calls FastAPI directly (ADR-0005).
 const FASTAPI_URL = process.env.FASTAPI_INTERNAL_URL ?? "http://localhost:8000"
@@ -42,16 +43,7 @@ export default async function WikiPageReader({ params }: PageProps) {
 
   return (
     <LayoutShell
-      sidebar={
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-brand-emerald uppercase tracking-wider">CoE Wiki</p>
-          <nav className="mt-4 space-y-1">
-            <a href="/chat" className="block rounded px-2 py-1 text-xs text-brand-ivory hover:bg-brand-obsidian">
-              Chat
-            </a>
-          </nav>
-        </div>
-      }
+      sidebar={<SideNav />}
     >
       <div className="max-w-3xl space-y-6">
         {/* Header */}
