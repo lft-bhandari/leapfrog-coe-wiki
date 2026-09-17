@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
 
+import google_auth_httplib2
+import httplib2
 import markdownify
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -117,4 +120,8 @@ def build_drive_service(credentials_path: Path, token_cache_path: Path) -> Any:
         token_cache_path.parent.mkdir(parents=True, exist_ok=True)
         token_cache_path.write_text(creds.to_json())
 
-    return build("drive", "v3", credentials=creds)
+    # httplib2 has its own CA bundle and ignores SSL_CERT_FILE; pass the system
+    # bundle explicitly so corporate proxy certs are trusted.
+    ca_certs = os.environ.get("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")
+    http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http(ca_certs=ca_certs))
+    return build("drive", "v3", http=http)

@@ -5,10 +5,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable
 
+from core.build_index import build_index
 from core.ingest_doc import ingest_doc
 from core.slug import slugify
 from core.wiki_graph import collect_term_mentions
 from core.wiki_repository import WikiRepository
+
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 
 _DOMAINS = [
     "gen-ai-fundamentals",
@@ -22,14 +25,8 @@ _DOMAINS = [
     "general",
 ]
 
-_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
-
 
 def _parse_frontmatter_field(content: str, field: str) -> str:
-    """Extract a scalar value from YAML frontmatter without a full YAML parser.
-
-    Only handles simple key: value pairs — sufficient for our controlled frontmatter format.
-    """
     match = _FRONTMATTER_RE.match(content)
     if not match:
         return ""
@@ -40,12 +37,10 @@ def _parse_frontmatter_field(content: str, field: str) -> str:
 
 
 def _parse_page_type(content: str) -> str:
-    """Return the value of the 'type' frontmatter field, defaulting to 'concept'."""
     return _parse_frontmatter_field(content, "type") or "concept"
 
 
 def _parse_domain(content: str) -> str:
-    """Return the domain from source page frontmatter, defaulting to 'general'."""
     domain = _parse_frontmatter_field(content, "domain")
     return domain if domain in _DOMAINS else "general"
 
@@ -75,35 +70,6 @@ def _write_term_page(
     slug = slugify(term)
     repo.write_page(target_dir, slug, page_content)
 
-
-def _rebuild_domain_indexes(repo: WikiRepository) -> None:
-    """Rebuild index.md for every domain that has at least one source page.
-
-    Reads the 'domain' frontmatter field from each source page and groups sources
-    by domain before writing each domain's index.
-    """
-    domain_to_slugs: dict[str, list[str]] = {d: [] for d in _DOMAINS}
-    for slug in repo.list_slugs("sources"):
-        content = repo.read_page("sources", slug)
-        domain = _parse_domain(content)
-        domain_to_slugs[domain].append(slug)
-
-    for domain, slugs in domain_to_slugs.items():
-        if not slugs:
-            continue
-        lines = [f"# {domain.replace('-', ' ').title()}\n"]
-        for s in sorted(slugs):
-            lines.append(f"- [[sources/{s}]]")
-        repo.write_page("domains", f"{domain}/index", "\n".join(lines) + "\n")
-
-
-def _rebuild_root_index(repo: WikiRepository) -> None:
-    """Rebuild wiki/index.md listing all domains that have an index page."""
-    lines = ["# CoE Wiki\n"]
-    for domain in _DOMAINS:
-        if repo.page_exists("domains", f"{domain}/index"):
-            lines.append(f"- [[domains/{domain}/index]]")
-    repo.write_root_index("\n".join(lines) + "\n")
 
 
 def run_ingest(
@@ -158,5 +124,4 @@ def run_ingest(
             except Exception as exc:
                 raise RuntimeError(f"Failed to synthesize term page for '{term}': {exc}") from exc
 
-    _rebuild_domain_indexes(repo)
-    _rebuild_root_index(repo)
+    build_index(repo)

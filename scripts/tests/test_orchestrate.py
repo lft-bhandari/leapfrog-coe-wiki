@@ -159,3 +159,120 @@ def test_run_ingest_writes_root_index(tmp_path):
     run_ingest([FIXTURE_RAG, FIXTURE_VECDB], repo, synthesize_source, _mock_term_page)
 
     assert repo.root_index_exists()
+
+
+# --- Slice 6 (#13): concept/entity pages include description field ---
+
+def test_run_ingest_concept_page_contains_description(tmp_path):
+    repo = FilesystemWikiRepository(tmp_path)
+
+    def synthesize_source(content, slug):
+        if slug == "retrieval-augmented-generation":
+            return _mock_source_rag(content, slug)
+        return _mock_source_vecdb(content, slug)
+
+    run_ingest([FIXTURE_RAG, FIXTURE_VECDB], repo, synthesize_source, _mock_term_page)
+
+    # vector-embeddings is the shared term → concept page
+    content = repo.read_page("concepts", "vector-embeddings")
+    # description field must be present and non-empty
+    assert "description:" in content
+    desc_line = next(line for line in content.splitlines() if line.startswith("description:"))
+    assert desc_line.split(":", 1)[1].strip()
+
+
+# --- Slice 7 (#14): source pages include entities and concepts arrays ---
+
+def _mock_source_with_arrays(content: str, slug: str) -> str:
+    return f"""\
+---
+type: source
+title: Doc {slug}
+description: A document about vector search.
+sources:
+  - raw/{slug}.md
+domain: retrieval-and-knowledge
+created: 2026-09-17T00:00:00Z
+entities:
+  - "[[FAISS]]"
+concepts:
+  - "[[vector-search]]"
+---
+
+We use [[FAISS]] and [[vector-search]] techniques.
+"""
+
+def test_run_ingest_source_page_contains_entities_and_concepts_arrays(tmp_path):
+    repo = FilesystemWikiRepository(tmp_path)
+
+    run_ingest(
+        [FIXTURE_RAG, FIXTURE_VECDB],
+        repo,
+        _mock_source_with_arrays,
+        _mock_term_page,
+    )
+
+    rag_content = repo.read_page("sources", "retrieval-augmented-generation")
+    assert "entities:" in rag_content
+    assert "concepts:" in rag_content
+
+
+# --- Slice 8 (#15): domain index uses description bullets ---
+
+def _mock_source_with_desc(content: str, slug: str) -> str:
+    return f"""\
+---
+type: source
+title: My Source {slug}
+description: A detailed look at {slug}.
+sources:
+  - raw/{slug}.md
+domain: retrieval-and-knowledge
+created: 2026-09-17T00:00:00Z
+entities: []
+concepts: []
+---
+
+Content here.
+"""
+
+def test_run_ingest_domain_index_contains_description_bullets(tmp_path):
+    repo = FilesystemWikiRepository(tmp_path)
+
+    run_ingest(
+        [FIXTURE_RAG, FIXTURE_VECDB],
+        repo,
+        _mock_source_with_desc,
+        _mock_term_page,
+    )
+
+    index_content = repo.read_page("domains", "retrieval-and-knowledge/index")
+    # Must use description-bullet format
+    assert " — " in index_content
+    assert "[[sources/" in index_content
+    # Description text from the mock
+    assert "A detailed look at" in index_content
+
+
+def test_run_ingest_domain_index_falls_back_to_title_when_no_description(tmp_path):
+    repo = FilesystemWikiRepository(tmp_path)
+
+    def no_desc_source(content: str, slug: str) -> str:
+        return f"""\
+---
+type: source
+title: Titled Source {slug}
+sources:
+  - raw/{slug}.md
+domain: retrieval-and-knowledge
+created: 2026-09-17T00:00:00Z
+---
+
+Content.
+"""
+
+    run_ingest([FIXTURE_RAG, FIXTURE_VECDB], repo, no_desc_source, _mock_term_page)
+
+    index_content = repo.read_page("domains", "retrieval-and-knowledge/index")
+    # Falls back to title, not empty dash
+    assert "Titled Source" in index_content

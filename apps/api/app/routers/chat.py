@@ -65,7 +65,7 @@ async def post_chat_stream(
     history = [{"role": m.role, "content": m.content} for m in body.history]
 
     async def event_stream():
-        async for chunk in await stream_navigate_and_answer(
+        async for chunk in stream_navigate_and_answer(
             question=body.question,
             history=history,
             wiki_dir=_WIKI_DIR,

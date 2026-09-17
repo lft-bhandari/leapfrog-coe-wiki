@@ -11,8 +11,6 @@ import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
-import anthropic
-
 from core.drive import build_drive_service, extract_file_id, fetch_doc_as_markdown, is_drive_url
 from core.orchestrate import run_ingest
 from core.slug import slugify
@@ -132,10 +130,9 @@ def main() -> None:
         tmp_dir = Path(_tmp) if has_drive else None
         doc_paths = _resolve_doc_paths(args, tmp_dir)
 
-        client = anthropic.Anthropic()
         repo = FilesystemWikiRepository(_WIKI_DIR)
-        synthesize_source = make_source_synthesize_fn(client)
-        synthesize_term = make_term_synthesize_fn(client)
+        synthesize_source = make_source_synthesize_fn()
+        synthesize_term = make_term_synthesize_fn()
 
         print(f"[ingest] ingesting {len(doc_paths)} doc(s) ...")
         try:
