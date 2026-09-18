@@ -12,7 +12,7 @@ import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
-from core.chat_backends import make_ollama_chat_fn
+from core.chat_backends import ChatFn, make_bedrock_chat_fn, make_ollama_chat_fn
 from core.drive import build_drive_service, extract_file_id, fetch_doc_as_markdown, is_drive_url
 from core.orchestrate import run_ingest
 from core.slug import slugify
@@ -114,6 +114,33 @@ def _resolve_doc_paths(
     return doc_paths
 
 
+def _make_chat_fn() -> ChatFn:
+    """Construct the active LLM backend from environment variables.
+
+    SYNTHESIS_BACKEND selects the provider (default: ollama).
+    Supported values: ollama, bedrock.
+
+    Raises:
+        ValueError: If SYNTHESIS_BACKEND is set to an unrecognised value.
+    """
+    backend = os.environ.get("SYNTHESIS_BACKEND", "ollama").lower()
+    if backend == "ollama":
+        return make_ollama_chat_fn(
+            model=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        )
+    if backend == "bedrock":
+        return make_bedrock_chat_fn(
+            model_id=os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
+            # Pass region only when explicitly set; otherwise let boto3 resolve
+            # from its own chain (AWS_DEFAULT_REGION, ~/.aws/config, etc.)
+            region=os.environ.get("AWS_REGION"),
+        )
+    raise ValueError(
+        f"Unknown SYNTHESIS_BACKEND={backend!r}. Supported: ollama, bedrock."
+    )
+
+
 def main() -> None:
     """Entry point for the ingest CLI.
 
@@ -133,10 +160,11 @@ def main() -> None:
         doc_paths = _resolve_doc_paths(args, tmp_dir)
 
         repo = FilesystemWikiRepository(_WIKI_DIR)
-        chat_fn = make_ollama_chat_fn(
-            model=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
-        )
+        try:
+            chat_fn = _make_chat_fn()
+        except ValueError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            sys.exit(1)
         synthesize_source = make_source_synthesize_fn(chat_fn)
         synthesize_term = make_term_synthesize_fn(chat_fn)
 
