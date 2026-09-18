@@ -9,6 +9,7 @@ dependencies = [
     "google-auth-oauthlib>=1.1.0",
     "markdownify>=0.11.6",
     "boto3>=1.43.97",
+    "python-dotenv>=1.2.3",
 ]
 
 [dependency-groups]
