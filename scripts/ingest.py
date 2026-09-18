@@ -6,11 +6,13 @@ For Google Doc URLs, authenticates via OAuth on first run (opens browser)
 and caches the token at ~/.config/coe-wiki/token.json. Subsequent runs are
 silent. Requires credentials.json in the scripts/ directory.
 """
+import os
 import sys
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
+from core.chat_backends import make_ollama_chat_fn
 from core.drive import build_drive_service, extract_file_id, fetch_doc_as_markdown, is_drive_url
 from core.orchestrate import run_ingest
 from core.slug import slugify
@@ -131,8 +133,12 @@ def main() -> None:
         doc_paths = _resolve_doc_paths(args, tmp_dir)
 
         repo = FilesystemWikiRepository(_WIKI_DIR)
-        synthesize_source = make_source_synthesize_fn()
-        synthesize_term = make_term_synthesize_fn()
+        chat_fn = make_ollama_chat_fn(
+            model=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        )
+        synthesize_source = make_source_synthesize_fn(chat_fn)
+        synthesize_term = make_term_synthesize_fn(chat_fn)
 
         print(f"[ingest] ingesting {len(doc_paths)} doc(s) ...")
         try:

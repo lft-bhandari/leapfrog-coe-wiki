@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-import httpx
-
-_OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+from core.chat_backends import ChatFn
 
 _CURRICULUM_PATH = Path(__file__).parent.parent.parent / "docs" / "curriculum.md"
 
@@ -96,41 +92,11 @@ Prefer these canonical concept names where they apply: {_CURRICULUM_VOCAB}.>
 Output ONLY the wiki page. No preamble, no explanation."""
 
 
-def _ollama_chat(system: str, user: str) -> str:
-    """Call the Ollama /api/chat endpoint and return the assistant's reply.
+def make_source_synthesize_fn(chat_fn: ChatFn) -> Callable[[str, str], str]:
+    """Create a synthesize function that produces source wiki pages.
 
     Args:
-        system: System prompt.
-        user: User message.
-
-    Returns:
-        The assistant text response.
-
-    Raises:
-        RuntimeError: If the Ollama request fails.
-    """
-    payload = {
-        "model": _OLLAMA_MODEL,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    }
-    try:
-        resp = httpx.post(
-            f"{_OLLAMA_BASE_URL}/api/chat",
-            json=payload,
-            timeout=120.0,
-        )
-        resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise RuntimeError(f"Ollama request failed: {exc}") from exc
-    return resp.json()["message"]["content"]
-
-
-def make_source_synthesize_fn() -> Callable[[str, str], str]:
-    """Create a synthesize function that produces source wiki pages via Ollama.
+        chat_fn: Backend callable (system_prompt, user_message) -> reply.
 
     Returns:
         A callable (content, slug) -> source page markdown.
@@ -138,16 +104,19 @@ def make_source_synthesize_fn() -> Callable[[str, str], str]:
     def synthesize(content: str, slug: str) -> str:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         user_msg = f"slug: {slug}\ncreated: {now}\n\n---\n\n{content}"
-        return _ollama_chat(_SOURCE_SYSTEM, user_msg)
+        return chat_fn(_SOURCE_SYSTEM, user_msg)
 
     return synthesize
 
 
-def make_term_synthesize_fn() -> Callable[[str, list[str]], str]:
-    """Create a synthesize function that produces concept or entity wiki pages via Ollama.
+def make_term_synthesize_fn(chat_fn: ChatFn) -> Callable[[str, list[str]], str]:
+    """Create a synthesize function that produces concept or entity wiki pages.
 
     The returned callable classifies the term as concept or entity in the
     frontmatter 'type' field — the orchestrator uses that to decide the target directory.
+
+    Args:
+        chat_fn: Backend callable (system_prompt, user_message) -> reply.
 
     Returns:
         A callable (term, source_contents) -> concept/entity page markdown.
@@ -155,6 +124,6 @@ def make_term_synthesize_fn() -> Callable[[str, list[str]], str]:
     def synthesize(term: str, source_contents: list[str]) -> str:
         sources_block = "\n\n---\n\n".join(source_contents)
         user_msg = f"term: {term}\n\n===SOURCE PAGES===\n\n{sources_block}"
-        return _ollama_chat(_TERM_SYSTEM, user_msg)
+        return chat_fn(_TERM_SYSTEM, user_msg)
 
     return synthesize
