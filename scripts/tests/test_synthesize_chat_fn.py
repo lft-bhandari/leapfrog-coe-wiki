@@ -32,3 +32,25 @@ def test_term_synthesize_fn_calls_chat_fn():
     system, user = calls[0]
     assert "RAG" in user
     assert len(system) > 0
+
+
+def test_source_synthesize_strips_preamble_before_frontmatter():
+    """Models sometimes add a sentence before --- despite the prompt."""
+    def _preamble_fn(system: str, user: str) -> str:
+        return "Here is the wiki page:\n\n---\ntype: source\ntitle: T\n---\n## Summary\n"
+
+    synthesize = make_source_synthesize_fn(_preamble_fn)
+    result = synthesize("content", "slug")
+
+    assert result.startswith('---')
+
+
+def test_source_synthesize_returns_as_is_when_no_frontmatter():
+    """If the model returns nothing usable, return raw so caller can validate."""
+    def _bad_fn(system: str, user: str) -> str:
+        return "I cannot process this request."
+
+    synthesize = make_source_synthesize_fn(_bad_fn)
+    result = synthesize("content", "slug")
+
+    assert result == "I cannot process this request."

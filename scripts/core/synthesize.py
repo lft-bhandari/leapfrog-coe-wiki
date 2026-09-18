@@ -104,7 +104,10 @@ def make_source_synthesize_fn(chat_fn: ChatFn) -> Callable[[str, str], str]:
     def synthesize(content: str, slug: str) -> str:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         user_msg = f"slug: {slug}\ncreated: {now}\n\n---\n\n{content}"
-        return chat_fn(_SOURCE_SYSTEM, user_msg)
+        reply = chat_fn(_SOURCE_SYSTEM, user_msg)
+        # Strip any preamble the model added before the frontmatter opener.
+        idx = reply.find('---')
+        return reply[idx:] if idx != -1 else reply
 
     return synthesize
 
@@ -124,6 +127,8 @@ def make_term_synthesize_fn(chat_fn: ChatFn) -> Callable[[str, list[str]], str]:
     def synthesize(term: str, source_contents: list[str]) -> str:
         sources_block = "\n\n---\n\n".join(source_contents)
         user_msg = f"term: {term}\n\n===SOURCE PAGES===\n\n{sources_block}"
-        return chat_fn(_TERM_SYSTEM, user_msg)
+        reply = chat_fn(_TERM_SYSTEM, user_msg)
+        idx = reply.find('---')
+        return reply[idx:] if idx != -1 else reply
 
     return synthesize
