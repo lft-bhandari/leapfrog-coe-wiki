@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.build_index import build_index
+from core.chat_backends import ChatFn
 from core.ingest_doc import ingest_doc
 from core.slug import slugify
 from core.wiki_graph import collect_term_mentions
@@ -77,6 +78,7 @@ def run_ingest(
     repo: WikiRepository,
     synthesize_source_fn: Callable[[str, str], str],
     synthesize_term_fn: Callable[[str, list[str]], str],
+    chat_fn: ChatFn | None = None,
 ) -> None:
     """Ingest multiple docs in parallel, apply the ≥2 rule, and rebuild all indexes.
 
@@ -85,6 +87,8 @@ def run_ingest(
         repo: WikiRepository for all wiki reads and writes.
         synthesize_source_fn: Callable (content, slug) -> source page markdown.
         synthesize_term_fn: Callable (term, source_contents) -> concept/entity page markdown.
+        chat_fn: LLM backend for preprocessing (image stripping, metadata extraction,
+            section splitting). When None, preprocessing is skipped.
 
     Raises:
         RuntimeError: If any source doc or term synthesis fails, with the filename included.
@@ -92,7 +96,7 @@ def run_ingest(
     # Ingest all source docs in parallel — order of writes doesn't matter
     with ThreadPoolExecutor() as executor:
         futures = {
-            executor.submit(ingest_doc, path, repo, synthesize_source_fn): path
+            executor.submit(ingest_doc, path, repo, synthesize_source_fn, chat_fn): path
             for path in doc_paths
         }
         for future in as_completed(futures):

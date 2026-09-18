@@ -176,7 +176,7 @@ def main() -> None:
 
         logger.info(f"[ingest] ingesting {len(doc_paths)} doc(s) ...")
         try:
-            run_ingest(doc_paths, repo, synthesize_source, synthesize_term)
+            run_ingest(doc_paths, repo, synthesize_source, synthesize_term, chat_fn=chat_fn)
             logger.info("[ingest] done")
         except Exception as exc:
             logger.error(str(exc))
