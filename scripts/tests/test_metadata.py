@@ -68,13 +68,15 @@ def test_extract_metadata_defaults_missing_fields():
     assert meta.review_cycle == 'Unknown'
 
 
-def test_extract_metadata_handles_malformed_llm_response():
+def test_extract_metadata_handles_malformed_llm_response(capsys):
     chat_fn = _make_chat_fn('not valid json at all')
 
     meta = extract_metadata(_FULL_HEADER, chat_fn)
 
     assert meta.author == ['Unknown']
     assert meta.reviewed_by == ['Unknown']
+    # no crash — malformed JSON is silently treated as empty
+    assert capsys.readouterr().err == ''
 
 
 def test_extract_metadata_handles_llm_json_in_markdown_fence():

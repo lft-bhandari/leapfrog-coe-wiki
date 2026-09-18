@@ -5,14 +5,19 @@ from typing import Callable
 
 from core.chat_backends import ChatFn
 from core.metadata import DocMetadata, extract_metadata
-from core.preprocess import split_sections, strip_images
+from core.preprocess import Section, split_sections, strip_images
 from core.slug import slugify
 from core.wiki_repository import WikiRepository
 
 
 def _inject_metadata_fields(page: str, meta: DocMetadata) -> str:
     """Insert DocMetadata fields into the YAML frontmatter of a wiki page."""
-    close_idx = page.index('\n---\n', 3)
+    try:
+        close_idx = page.index('\n---\n', 3)
+    except ValueError:
+        raise ValueError(
+            'Cannot inject metadata: source page has no closing YAML frontmatter marker (---)'
+        )
 
     def _yaml_list(key: str, values: list[str]) -> str:
         items = '\n'.join(f'  - "{v}"' for v in values)
@@ -34,6 +39,7 @@ def ingest_doc(
     repo: WikiRepository,
     synthesize_fn: Callable[[str, str], str],
     chat_fn: ChatFn | None = None,
+    is_drive_doc: bool = False,
 ) -> None:
     """Copy source sections to raw/ and write synthesized source pages to sources/.
 
@@ -48,6 +54,7 @@ def ingest_doc(
         synthesize_fn: Callable (content, slug) -> source page markdown with YAML frontmatter.
         chat_fn: LLM backend for metadata extraction and preprocessing. When None,
             preprocessing is skipped.
+        is_drive_doc: When True, a [warn] is emitted if no metadata header is found.
 
     Raises:
         ValueError: If a slug cannot be derived from the filename, or if any
@@ -61,21 +68,21 @@ def ingest_doc(
 
     if chat_fn is not None:
         cleaned = strip_images(raw_content)
-        meta = extract_metadata(cleaned, chat_fn)
+        meta = extract_metadata(cleaned, chat_fn, is_drive_doc=is_drive_doc)
         sections = split_sections(cleaned, doc_slug)
     else:
-        sections = [(doc_slug, raw_content)]
+        sections = [Section(slug=doc_slug, content=raw_content)]
         meta = None
 
-    for section_slug, section_content in sections:
-        source_page = synthesize_fn(section_content, section_slug)
+    for section in sections:
+        source_page = synthesize_fn(section.content, section.slug)
         # Validate before any writes so a bad synthesis never leaves an orphaned raw file.
         if not source_page.startswith('---'):
             raise ValueError(
-                f'Synthesis for {section_slug!r} returned no YAML frontmatter. '
+                f'Synthesis for {section.slug!r} returned no YAML frontmatter. '
                 'Check SYNTHESIS_BACKEND / OLLAMA_MODEL and retry.'
             )
         if meta is not None:
             source_page = _inject_metadata_fields(source_page, meta)
-        repo.write_raw(section_slug, section_content)
-        repo.write_page('sources', section_slug, source_page)
+        repo.write_raw(section.slug, section.content)
+        repo.write_page('sources', section.slug, source_page)

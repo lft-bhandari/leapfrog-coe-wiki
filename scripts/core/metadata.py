@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from core import logger
 from core.chat_backends import ChatFn
@@ -34,16 +34,18 @@ class DocMetadata(BaseModel):
     review_cycle: str = 'Unknown'
 
     def is_all_unknown(self) -> bool:
+        # Compare against a fresh default instance so this stays correct if defaults change.
+        empty = DocMetadata()
         return (
-            self.author == ['Unknown']
-            and self.reviewed_by == ['Unknown']
-            and self.documented_date == 'Unknown'
-            and self.last_updated_date == 'Unknown'
-            and self.review_cycle == 'Unknown'
+            self.author == empty.author
+            and self.reviewed_by == empty.reviewed_by
+            and self.documented_date == empty.documented_date
+            and self.last_updated_date == empty.last_updated_date
+            and self.review_cycle == empty.review_cycle
         )
 
 
-def _parse_json(raw: str) -> dict:
+def _parse_json(raw: str) -> dict[str, object]:
     fence_match = _JSON_FENCE_RE.search(raw)
     text = fence_match.group(1) if fence_match else raw
     try:
@@ -78,7 +80,8 @@ def extract_metadata(
 
     try:
         meta = DocMetadata.model_validate(data)
-    except Exception:
+    except ValidationError as exc:
+        logger.warn(f'DocMetadata validation failed, using defaults: {exc}')
         meta = DocMetadata()
 
     if is_drive_doc and meta.is_all_unknown():

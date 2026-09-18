@@ -79,6 +79,7 @@ def run_ingest(
     synthesize_source_fn: Callable[[str, str], str],
     synthesize_term_fn: Callable[[str, list[str]], str],
     chat_fn: ChatFn | None = None,
+    drive_paths: frozenset[Path] | None = None,
 ) -> None:
     """Ingest multiple docs in parallel, apply the ≥2 rule, and rebuild all indexes.
 
@@ -89,6 +90,8 @@ def run_ingest(
         synthesize_term_fn: Callable (term, source_contents) -> concept/entity page markdown.
         chat_fn: LLM backend for preprocessing (image stripping, metadata extraction,
             section splitting). When None, preprocessing is skipped.
+        drive_paths: Set of paths that originated from Google Drive; used to emit
+            a warning when no metadata header is found in those docs.
 
     Raises:
         RuntimeError: If any source doc or term synthesis fails, with the filename included.
@@ -96,7 +99,14 @@ def run_ingest(
     # Ingest all source docs in parallel — order of writes doesn't matter
     with ThreadPoolExecutor() as executor:
         futures = {
-            executor.submit(ingest_doc, path, repo, synthesize_source_fn, chat_fn): path
+            executor.submit(
+                ingest_doc,
+                path,
+                repo,
+                synthesize_source_fn,
+                chat_fn,
+                drive_paths is not None and path in drive_paths,
+            ): path
             for path in doc_paths
         }
         for future in as_completed(futures):

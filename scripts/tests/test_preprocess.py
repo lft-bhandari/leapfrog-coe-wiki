@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.preprocess import split_sections, strip_images
+from core.preprocess import Section, split_sections, strip_images
 
 # ---------------------------------------------------------------------------
 # strip_images
@@ -87,27 +87,25 @@ Sub B content.
 """
 
 
-def test_split_sections_single_section_returns_one_tuple():
+def test_split_sections_single_section_returns_one_section():
     sections = split_sections(_SINGLE_SECTION, 'my-doc')
 
     assert len(sections) == 1
-    slug, content = sections[0]
-    assert slug == 'my-doc--section-one'
-    assert 'Content for section one' in content
+    assert sections[0].slug == 'my-doc--section-one'
+    assert 'Content for section one' in sections[0].content
 
 
 def test_split_sections_prepends_intro_to_first_section():
     sections = split_sections(_SINGLE_SECTION, 'my-doc')
 
-    _, content = sections[0]
-    assert 'Intro paragraph about the doc' in content
+    assert 'Intro paragraph about the doc' in sections[0].content
 
 
-def test_split_sections_two_sections_returns_two_tuples():
+def test_split_sections_two_sections_returns_two_sections():
     sections = split_sections(_TWO_SECTIONS, 'my-doc')
 
     assert len(sections) == 2
-    slugs = [s for s, _ in sections]
+    slugs = [s.slug for s in sections]
     assert 'my-doc--first-section' in slugs
     assert 'my-doc--second-section' in slugs
 
@@ -115,10 +113,8 @@ def test_split_sections_two_sections_returns_two_tuples():
 def test_split_sections_intro_only_prepended_to_first():
     sections = split_sections(_TWO_SECTIONS, 'my-doc')
 
-    _, first_content = sections[0]
-    _, second_content = sections[1]
-    assert 'Intro text' in first_content
-    assert 'Intro text' not in second_content
+    assert 'Intro text' in sections[0].content
+    assert 'Intro text' not in sections[1].content
 
 
 def test_split_sections_no_headings_returns_single_slug_from_doc():
@@ -127,9 +123,8 @@ def test_split_sections_no_headings_returns_single_slug_from_doc():
     sections = split_sections(content, 'plain-doc')
 
     assert len(sections) == 1
-    slug, body = sections[0]
-    assert slug == 'plain-doc'
-    assert 'Just plain content' in body
+    assert sections[0].slug == 'plain-doc'
+    assert 'Just plain content' in sections[0].content
 
 
 def test_split_sections_oversized_section_splits_on_h3(monkeypatch):
@@ -138,7 +133,7 @@ def test_split_sections_oversized_section_splits_on_h3(monkeypatch):
 
     sections = split_sections(_SECTION_WITH_SUBSECTIONS, 'doc')
 
-    slugs = [s for s, _ in sections]
+    slugs = [s.slug for s in sections]
     # subsections namespaced under parent: {doc}--{h2}--{h3}
     assert 'doc--big-section--sub-a' in slugs
     assert 'doc--big-section--sub-b' in slugs
@@ -147,6 +142,6 @@ def test_split_sections_oversized_section_splits_on_h3(monkeypatch):
 def test_split_sections_slug_uses_double_dash_separator():
     sections = split_sections(_TWO_SECTIONS, 'context-engineering')
 
-    slugs = [s for s, _ in sections]
+    slugs = [s.slug for s in sections]
     assert all('--' in s for s in slugs)
     assert 'context-engineering--first-section' in slugs

@@ -33,7 +33,7 @@ _TOKEN_CACHE = Path.home() / ".config" / "coe-wiki" / "token.json"
 
 def _resolve_doc_paths(
     args: list[str], tmp_dir: Path | None
-) -> list[Path]:
+) -> tuple[list[Path], frozenset[Path]]:
     """Resolve CLI arguments to local markdown file paths.
 
     Local paths are validated directly. Google Doc URLs are fetched and
@@ -44,7 +44,7 @@ def _resolve_doc_paths(
         tmp_dir: Directory for Drive-fetched files, or None if no Drive URLs expected.
 
     Returns:
-        List of resolved Path objects pointing to markdown files.
+        Tuple of (all resolved paths, subset that originated from Google Drive).
 
     Raises:
         SystemExit: On validation errors (missing file, wrong extension,
@@ -53,6 +53,7 @@ def _resolve_doc_paths(
     drive_urls: list[str] = []
     errors = False
     doc_paths: list[Path] = []
+    drive_paths: list[Path] = []
 
     for arg in args:
         if is_drive_url(arg):
@@ -95,12 +96,13 @@ def _resolve_doc_paths(
                 logger.error(str(exc))
                 sys.exit(1)
 
-            # end=" " keeps the "ok (title)" suffix on the same line
+            # end=" " keeps the ok/failed suffix on the same line as the fetch message
             print(f"[drive] fetching {file_id} ...", end=" ", flush=True)
             try:
                 title, content = fetch_doc_as_markdown(file_id, service)
             except Exception as exc:
-                logger.error(f"failed\n{exc}")
+                print("failed")  # complete the inline line before logging
+                logger.error(str(exc))
                 sys.exit(1)
 
             base_slug = slugify(title) or file_id
@@ -115,9 +117,10 @@ def _resolve_doc_paths(
             tmp_file = tmp_dir / f"{slug}.md"
             tmp_file.write_text(content)
             doc_paths.append(tmp_file)
+            drive_paths.append(tmp_file)
             print(f"ok ({title!r})")
 
-    return doc_paths
+    return doc_paths, frozenset(drive_paths)
 
 
 def _make_chat_fn() -> ChatFn:
@@ -163,7 +166,7 @@ def main() -> None:
     # it is cleaned up on exit even if ingest fails
     with tempfile.TemporaryDirectory(prefix="coe-wiki-drive-") as _tmp:
         tmp_dir = Path(_tmp) if has_drive else None
-        doc_paths = _resolve_doc_paths(args, tmp_dir)
+        doc_paths, drive_paths = _resolve_doc_paths(args, tmp_dir)
 
         repo = FilesystemWikiRepository(_WIKI_DIR)
         try:
@@ -176,7 +179,10 @@ def main() -> None:
 
         logger.info(f"[ingest] ingesting {len(doc_paths)} doc(s) ...")
         try:
-            run_ingest(doc_paths, repo, synthesize_source, synthesize_term, chat_fn=chat_fn)
+            run_ingest(
+                doc_paths, repo, synthesize_source, synthesize_term,
+                chat_fn=chat_fn, drive_paths=drive_paths,
+            )
             logger.info("[ingest] done")
         except Exception as exc:
             logger.error(str(exc))
