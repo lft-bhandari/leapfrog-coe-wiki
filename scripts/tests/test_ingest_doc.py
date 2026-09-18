@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 from core.ingest_doc import ingest_doc
 from core.wiki_repository import FilesystemWikiRepository
@@ -46,7 +47,19 @@ def test_ingest_doc_writes_source_page(tmp_path):
     assert source.read_text() == MOCK_SOURCE_PAGE
 
 
-# --- Slice 3: idempotent overwrite ---
+# --- Slice 3: malformed synthesis output raises ---
+
+def test_ingest_doc_raises_on_missing_frontmatter(tmp_path):
+    repo = FilesystemWikiRepository(tmp_path)
+
+    def _plain_text_synthesize(content: str, slug: str) -> str:
+        return 'This is a plain English summary with no frontmatter.'
+
+    with pytest.raises(ValueError, match='no YAML frontmatter'):
+        ingest_doc(FIXTURE, repo, _plain_text_synthesize)
+
+
+# --- Slice 4: idempotent overwrite ---
 
 def test_ingest_doc_overwrites_on_rerun(tmp_path):
     repo = FilesystemWikiRepository(tmp_path)

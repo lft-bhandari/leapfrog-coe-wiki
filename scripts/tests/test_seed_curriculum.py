@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from seed_curriculum import _parse_curriculum, _slugify, seed_curriculum
 
 _MINI_CURRICULUM = """\
@@ -98,3 +100,35 @@ def test_seed_curriculum_regenerates_indexes(tmp_path):
 
     # Root index exists after seeding (build_index was called)
     assert (wiki / "index.md").exists()
+
+
+def test_seed_curriculum_covers_all_nine_domains(tmp_path):
+    """One representative topic per domain from the real curriculum."""
+    real_curriculum = Path(__file__).parent.parent.parent / "docs" / "curriculum.md"
+    if not real_curriculum.exists():
+        pytest.skip("docs/curriculum.md not present in this checkout")
+    wiki = tmp_path / "wiki"
+
+    seed_curriculum(curriculum_path=real_curriculum, wiki_dir=wiki)
+
+    expected = {
+        # Gen AI Fundamentals
+        "llm-functional-mental-model",
+        # Retrieval and Knowledge
+        "chunking-strategies",
+        # Agents and Autonomy
+        "the-agent-loop",
+        # Evaluation and Quality
+        "golden-datasets-and-labelling",
+        # Models: Capability and Adaptation
+        "fine-tuning-and-peft",
+        # Security and Governance
+        "prompt-injection-direct-and-indirect",
+        # Platform and Operations
+        "latency-engineering",
+        # Classical ML and Deep Learning
+        "supervised-learning-workflow",
+        # General (no topics in curriculum — domain exists for ingested docs)
+    }
+    for slug in expected:
+        assert (wiki / "concepts" / f"{slug}.md").exists(), f"Missing concept stub: {slug}"

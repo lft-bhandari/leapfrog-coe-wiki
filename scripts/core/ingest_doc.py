@@ -28,7 +28,12 @@ def ingest_doc(
         raise ValueError(f"Cannot derive a slug from filename {doc_path.name!r}")
 
     content = doc_path.read_text()
-    repo.write_raw(slug, content)
-
     source_page = synthesize_fn(content, slug)
-    repo.write_page("sources", slug, source_page)
+    # Validate before any writes so a bad synthesis never leaves an orphaned raw file.
+    if not source_page.startswith('---'):
+        raise ValueError(
+            f'Synthesis for {slug!r} returned no YAML frontmatter. '
+            'Check SYNTHESIS_BACKEND / OLLAMA_MODEL and retry.'
+        )
+    repo.write_raw(slug, content)
+    repo.write_page('sources', slug, source_page)
